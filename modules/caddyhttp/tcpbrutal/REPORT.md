@@ -132,7 +132,42 @@ The client's declaration is applied to the live socket by the handler, on an
 HTTP/2 connection, without touching the listener configuration. This is the
 mechanism that makes brutal safe: the end that knows its own downlink states it.
 
-## 3. Operational conclusions
+## 3. Deployment verification (systemd, live domain)
+
+Deployment: Debian 12 KVM (1 vCPU, kernel 6.1.0-44, module 2.0.1), Caddy running
+under systemd as `/usr/local/bin/caddy` with `/etc/caddy/Caddyfile`, module
+installed to `/lib/modules/$(uname -r)/extra/` and loaded via
+`/etc/modules-load.d/brutal.conf`. Let's Encrypt certificate obtained through a
+Cloudflare-proxied DNS record (HTTP-01 solved via the proxy; TLS-ALPN is
+impossible there).
+
+`test/functional-test.sh` — **42 checks, 42 passed**:
+
+| Area | Result |
+|---|---|
+| HTTP→HTTPS 308 redirect | ✅ status + `Location` |
+| TLS/headers | ✅ HSTS, `X-Served-By`, `Server` removed |
+| static: index, browse, 60 MB download, ranges, HEAD, 304 | ✅ incl. matching `sha256` after a brutal-paced download |
+| compression: gzip + zstd | ✅ both negotiated |
+| reverse_proxy: query, Host, XFF, XFP, POST body | ✅ body byte-identical at the backend |
+| errors | ✅ 404 + custom error page |
+| protocol: h1 forced, h2 negotiated, keep-alive reuse | ✅ 3 requests over 1 connection |
+| TCP Brutal declared rates (40/80 Mbit/s, `?brutal=60`) | ✅ 36.5 / 69.2 / 55.8 Mbit/s |
+| same endpoints through the CDN | ✅ 200 |
+| `caddy reload` under systemd | ✅ no dropped requests |
+| journal | ✅ no warnings/errors |
+| HTTP/3 (QUIC), verified with a quic-go client | ✅ `HTTP/3.0`, TLS 1.3, 200 |
+
+Two deployment bugs worth recording, both now fixed in `deploy/`:
+
+1. `ProtectHome=true` in the systemd unit hid `/root`, where Caddy keeps its
+   certificates, so every TLS handshake failed (Cloudflare: *525*). Fixed by
+   moving storage to `/var/lib/caddy` via `XDG_DATA_HOME`.
+2. A global `log { output file ... }` only redirects the *default* logger; the
+   access log needs a `log` block inside the site, otherwise requests are not
+   recorded at all.
+
+## 4. Operational conclusions
 
 - **Choose the rate deliberately.** `rate` should sit at 70–90 % of the
   *single-stream* throughput the path can actually deliver. Measure it first with

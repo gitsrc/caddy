@@ -1,0 +1,12 @@
+[Unit]
+Description=TCP Brutal test backend (reverse_proxy target)
+After=network.target
+
+[Service]
+ExecStart=/usr/bin/python3 /opt/brutal-backend/backend.py
+Restart=always
+RestartSec=2
+DynamicUser=yes
+
+[Install]
+WantedBy=multi-user.target

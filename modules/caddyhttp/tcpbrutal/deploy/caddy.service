@@ -1,0 +1,21 @@
+[Unit]
+Description=Caddy with TCP Brutal
+Documentation=https://github.com/gitsrc/caddy/tree/feat/tcp-brutal/modules/caddyhttp/tcpbrutal
+After=network-online.target
+Wants=network-online.target
+# the tcp-brutal module must be loaded before Caddy starts
+Requires=systemd-modules-load.service
+
+[Service]
+Type=notify
+User=root
+Group=root
+ExecStart=/usr/local/bin/caddy run --environ --config /etc/caddy/Caddyfile
+ExecReload=/usr/local/bin/caddy reload --config /etc/caddy/Caddyfile --force
+TimeoutStopSec=5s
+LimitNOFILE=1048576
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
