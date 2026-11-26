@@ -133,6 +133,7 @@ require (
 	github.com/dgraph-io/ristretto v0.2.0 // indirect
 	github.com/dgryski/go-farm v0.0.0-20240924180020-3414d57e47da // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
+	github.com/gitsrc/tcp-brutal-go v0.1.0
 	github.com/go-logr/logr v1.4.4 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-sql-driver/mysql v1.10.1 // indirect
@@ -178,3 +179,5 @@ require (
 	google.golang.org/protobuf v1.36.12 // indirect
 	howett.net/plist v1.0.1 // indirect
 )
+
+replace github.com/gitsrc/tcp-brutal-go => ../tcp-brutal-go
