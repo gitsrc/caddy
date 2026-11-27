@@ -166,6 +166,20 @@ done
 `delivery_rate` will be lower when the receiver's window or the path is the
 limit.
 
+## Two ways to get this
+
+| | stock-Caddy plugin | this fork branch |
+|---|---|---|
+| Caddy source | untouched, official release | patched tree |
+| Build | `xcaddy build --with github.com/gitsrc/tcp-brutal-go/caddy` | `go build ./cmd/caddy` |
+| Code | identical (the plugin package is `caddy/` in the library repo) | identical |
+
+The plugin packaging lives at [`github.com/gitsrc/tcp-brutal-go/caddy`](https://github.com/gitsrc/tcp-brutal-go/tree/main/caddy)
+and was verified against the official Caddy **v2.11.9**: two non-standard modules,
+byte-identical Caddyfile adaptation, and `pacing_rate` matching the declared rate.
+Everything in this directory (deploy units, functional suite, bench matrix,
+regression comparison) applies to both builds.
+
 ## Building
 
 The module lives in `modules/caddyhttp/tcpbrutal` and is registered in
