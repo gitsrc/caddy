@@ -246,6 +246,24 @@ ss -tin dst <client-ip> | grep -o 'brutal\|pacing_rate [0-9]*bps'
    need a `log` block inside the site (see `deploy/Caddyfile`). Otherwise the
    log file only receives provision/runtime events and looks suspiciously quiet.
 
+### Measurement harness
+
+Everything is measured on the Caddy host itself, so no external link is part of
+the numbers:
+
+```bash
+sudo bash modules/caddyhttp/tcpbrutal/bench/run-all.sh
+#  1/3 functional suite           42 checks
+#  2/3 declared-rate accuracy     loopback listener
+#  3/3 utilisation matrix         shaped path in a throwaway netns (~4 min)
+#  -> /root/bench/REPORT.md
+```
+
+The matrix varies the namespace's default congestion control (`cubic`, `bbr`),
+the sender-side loss (0–5 %) and the rate declared to brutal, and reports goodput,
+link utilisation, wire load and retransmission overhead (read from the veth TX
+counters, so wasted bytes are visible).
+
 ### Verified functional test suite
 
 `test/functional-test.sh` runs 42 checks against a live deployment (direct to

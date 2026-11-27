@@ -6,7 +6,7 @@
 #
 # Every check prints PASS/FAIL; the exit code is the number of failures.
 
-ORIGIN_IP=${ORIGIN_IP:-185.148.13.138}
+ORIGIN_IP=${ORIGIN_IP:-127.0.0.1}
 DOMAIN=${DOMAIN:-cs.ontoai.xyz}
 R="--resolve $DOMAIN:443:$ORIGIN_IP --resolve $DOMAIN:8443:$ORIGIN_IP"
 TMP=$(mktemp -d)
@@ -126,7 +126,7 @@ echo "== 12. stock listener for comparison =="
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 $R "https://$DOMAIN:8443/health")
 check "plain :8443 serves" "200" "$code"
 
-echo "== 13. through Cloudflare (end-user path) =="
+echo "== 13. through the public DNS/CDN path =="
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$DOMAIN/health")
 check "CF: /health" "200" "$code"
 code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 "https://$DOMAIN/api/info")

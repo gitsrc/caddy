@@ -5,6 +5,14 @@ All numbers below were produced with this build of Caddy
 `tcp-brutal` 2.0.1 kernel module on Debian 12 (`6.1.0-44-cloud-amd64`, KVM,
 1 vCPU). Raw commands are in `bench/netns-bench.sh` and in the sections below.
 
+## How these numbers were produced
+
+`bench/run-all.sh` runs the whole harness **on the Caddy host**: the functional
+suite (42 checks), the declared-rate accuracy test (loopback) and the utilisation
+matrix (shaped path inside a throwaway netns, wire volume from veth TX counters).
+`bench/make-report.sh` then assembles the result into one markdown file. Section 2
+is the only part that needs an external client.
+
 ## TL;DR
 
 1. The integration is mechanically sound: the socket switches to `brutal`, the
@@ -24,68 +32,73 @@ All numbers below were produced with this build of Caddy
    link. All measurements against the live domain were taken with
    `--resolve` to bypass the proxy.
 
-## 1. Against CUBIC on a shaped path (the case brutal is built for)
+## 1. The utilisation matrix (everything measured on the Caddy host)
 
-Setup: throwaway netns + veth, TBF 200 Mbit/s on Caddy's egress, netem
-15 ms/direction (30 ms RTT), loss swept on the sender, namespace default CC set
-to `cubic`, Caddy serving 287 MB files from two servers — `:9090` with
-`listener_wrappers { tcp_brutal { rate 180 } }` and `:9091` stock.
+All numbers in this section were produced **on the host that runs Caddy**, so no
+external link is part of the measurement: the shaped path lives in a throwaway
+network namespace (veth pair, TBF 200 Mbit/s bottleneck, netem delay/loss on
+Caddy's egress), Caddy runs inside it serving `:9090` with the `tcp_brutal`
+wrapper and handler and `:9091` stock, and the client is `curl` on the same box.
 
-```
-namespace default CC: cubic
-path         : TBF 200 Mbit/s + 30ms RTT, loss on Caddy's egress
+Wire volume is read from the veth TX counters around each run, so retransmissions
+are counted. Reproduce with `sudo bash bench/run-all.sh`.
 
-loss   brutal (Mbit/s)    plain/cubic (Mbit/s) gain
-----   ---------------    ------------------ ----
-0%     177.6              188.1              x0.94
-0.5%   178.7              8.2                x21.79
-2%     178.5              4.8                x37.19
-5%     178.3              2.0                x89.15
-10%    177.9              1.2                x148.25
-```
+Host: Debian 12, kernel 6.1.0-44-cloud-amd64, 1 vCPU, module 2.0.1.
 
-Brutal's delivered rate is flat (177–179 Mbit/s against a 180 Mbit/s target,
-99 %) regardless of loss; CUBIC treats every loss as congestion and never
-recovers above 1–8 Mbit/s. This is the workload brutal exists for.
+| scenario | loss | goodput | link utilisation | wire load | overhead vs useful |
+|---|---|---|---|---|---|
+| stock Caddy, ns CC = cubic | 0 % | 185.4 Mbit/s | 92.7 % | 186.1 | 0 % |
+| stock Caddy, ns CC = bbr | 0 % | 186.0 Mbit/s | 93.0 % | 186.8 | 0 % |
+| brutal, rate 120 | 0 % | 117.8 Mbit/s | 58.9 % | 118.5 | 1 % |
+| brutal, rate 180 | 0 % | 176.4 Mbit/s | 88.2 % | 177.1 | 0 % |
+| brutal, rate 260 | 0 % | 187.5 Mbit/s | 93.8 % | 188.3 | 0 % |
+| stock Caddy, ns CC = cubic | 0.5 % | 25.6 Mbit/s | 12.8 % | 35.6 | 39 % |
+| stock Caddy, ns CC = bbr | 0.5 % | 185.6 Mbit/s | 92.8 % | 186.6 | 1 % |
+| brutal, rate 120 | 0.5 % | 118.4 Mbit/s | 59.2 % | 119.1 | 1 % |
+| brutal, rate 180 | 0.5 % | 177.3 Mbit/s | 88.6 % | 178.0 | 0 % |
+| brutal, rate 260 | 0.5 % | 29.5 Mbit/s | 14.8 % | 54.6 | 85 % |
+| stock Caddy, ns CC = cubic | 2 % | 3.7 Mbit/s | 1.8 % | 3.8 | 3 % |
+| stock Caddy, ns CC = bbr | 2 % | 185.2 Mbit/s | 92.6 % | 186.0 | 0 % |
+| brutal, rate 120 | 2 % | 118.3 Mbit/s | 59.1 % | 119.0 | 1 % |
+| brutal, rate 180 | 2 % | 177.5 Mbit/s | 88.7 % | 178.1 | 0 % |
+| brutal, rate 260 | 2 % | 25.9 Mbit/s | 13.0 % | 47.5 | 83 % |
+| stock Caddy, ns CC = cubic | 5 % | 2.1 Mbit/s | 1.1 % | 2.2 | 3 % |
+| stock Caddy, ns CC = bbr | 5 % | 181.3 Mbit/s | 90.7 % | 183.3 | 1 % |
+| brutal, rate 120 | 5 % | 117.4 Mbit/s | 58.7 % | 118.4 | 1 % |
+| brutal, rate 180 | 5 % | 177.3 Mbit/s | 88.7 % | 178.0 | 0 % |
+| brutal, rate 260 | 5 % | 21.6 Mbit/s | 10.8 % | 42.2 | 95 % |
 
-Client-declared rates on the same box (handler, `X-Brutal-Down`), clean path:
+What this says, in order of practical importance:
 
-| declared | delivered | accuracy |
-|---|---|---|
-| 20 Mbit/s | 19.9 Mbit/s | 99.5 % |
-| 40 Mbit/s | 36.3 Mbit/s | 91 % |
-| 100 Mbit/s | 97.4 Mbit/s | 97 % |
+1. **Against CUBIC** (the default on most hosts) brutal turns 1.1–12.8 % link
+   utilisation into a flat 88.7 %, at every loss level, with **0 % wire
+   overhead**. That is the case brutal exists for.
+2. **Against BBR it does not raise utilisation.** BBR holds 90.7–93.0 % here,
+   slightly *above* brutal@180, simply because brutal is capped by the declared
+   rate and BBR is not. Brutal's value is stability and a guaranteed rate, not a
+   higher peak.
+3. **The declared rate is a hard ceiling and also a cliff.** At rate 260 on a
+   200 Mbit/s path, utilisation drops to 10–15 % and 83–95 % of all transmitted
+   bytes are retransmissions — worse than doing nothing. Always declare at or
+   below what the path (and the receiver's window) can absorb.
+4. Loss below the declared rate barely matters to brutal: 120 → 117–118 Mbit/s
+   and 180 → 176–177 Mbit/s from 0 % to 5 % loss.
 
-## 1b. Bandwidth utilisation: how much of the pipe carries useful bytes
+Declared-rate accuracy on the loopback listener (no loss, isolates pacing):
 
-Same shaped path (TBF 200 Mbit/s, 30 ms RTT, 2 % loss, namespace default CC =
-`cubic`), but measured for utilisation rather than raw speed. "Wire load" is
-every byte Caddy put on the veth (retransmissions included), read from
-`/sys/class/net/*/statistics/tx_bytes` around each run.
+| declared | delivered | accuracy | kernel `pacing_rate` |
+|---|---|---|---|
+| 20 Mbit/s | 19.9 | 99.6 % | 20 Mbit/s |
+| 50 Mbit/s | 49.5 | 99.1 % | 50 Mbit/s |
+| 100 Mbit/s | 99.4 | 99.4 % | 100 Mbit/s |
+| 150 Mbit/s | 149.0 | 99.4 % | 150 Mbit/s |
+| 200 Mbit/s | 198.7 | 99.4 % | 200 Mbit/s |
 
-| scenario | goodput | link utilisation | wire load | overhead vs useful |
-|---|---|---|---|---|
-| stock Caddy (cubic) | 3.9 Mbit/s | **1.9 %** | 4.0 Mbit/s | 3 % |
-| brutal, rate 60 | 59.6 Mbit/s | 29.8 % | 60.2 Mbit/s | 1 % |
-| brutal, rate 120 | 118.9 Mbit/s | 59.5 % | 119.6 Mbit/s | 1 % |
-| brutal, rate 180 | 177.7 Mbit/s | **88.8 %** | 178.4 Mbit/s | **0 %** |
-| brutal, rate 260 | 25.7 Mbit/s | 12.9 % | 40.6 Mbit/s | **58 %** |
-| brutal, rate 400 | 21.5 Mbit/s | 10.8 % | 39.4 Mbit/s | **83 %** |
+## 2. Live domain, external client (168 ms, ~1–8 % loss)
 
-Reading:
-
-- A right-sized rate fills **88.8 %** of the bottleneck with useful bytes and
-  wastes nothing (0 % overhead), where the stock loss-based stack manages
-  **1.9 %**.
-- The declared rate is the ceiling, so utilisation ≈ declared ÷ capacity; do not
-  expect brutal to find capacity it was not told about.
-- Over-declaring is worse than doing nothing: at rate 260–400 the path collapses
-  to 11–13 % utilisation and 58–83 % of all wire bytes are retransmissions.
-- On the live path, clients declaring 40/80/60 Mbit/s received 36.5/69.2/55.8
-  (87–93 % of their declared budget), and a 100 Mbit/s declaration yielded
-  100.7 Mbit/s.
-
-## 2. Against BBR on the live domain (168 ms, ~1–8 % loss)
+This section used a client outside the host on purpose: it is the only way to
+observe a real intercontinental path. Everything else in this report is measured
+on the Caddy host itself.
 
 Environment: Caddy on a KVM VPS, Let's Encrypt certificate for the test domain
 (HTTP-01 solved through the Cloudflare proxy), HTTP/2, two servers on the same
@@ -229,8 +242,8 @@ The kernel paced at 101 Mbit/s for a 100 Mbit/s target and the client received
 ## Reproduction
 
 ```bash
-# shaped-path comparison (root, iproute2 + iperf-free: uses curl)
-sudo LOSSES="0 0.5 2 5 10" bash modules/caddyhttp/tcpbrutal/bench/netns-bench.sh
+# everything, on the Caddy host (functional + rate accuracy + utilisation matrix)
+sudo bash modules/caddyhttp/tcpbrutal/bench/run-all.sh
 
 # live A/B against a stock listener
 curl -o /dev/null -w '%{speed_download}\n' --resolve host:443:<origin-ip> https://host/big.bin
