@@ -175,6 +175,14 @@ done
 `delivery_rate` will be lower when the receiver's window or the path is the
 limit.
 
+## Where this runs today
+
+The reference deployment (`cs.ontoai.xyz`) serves **stock Caddy v2.11.9 with the
+plugin build** (`xcaddy build --with github.com/gitsrc/tcp-brutal-go/caddy`). This
+fork branch remains the home of the systemd units, the 42-check functional suite
+and the measurement harness, and carries identical module code — the same Caddyfile
+adapts to byte-identical JSON under either binary.
+
 ## Two ways to get this
 
 | | stock-Caddy plugin | this fork branch |
