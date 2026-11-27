@@ -65,6 +65,15 @@ curl -H 'X-Brutal-Down: 50' https://example.com/big.bin    # 50 Mbit/s
 curl 'https://example.com/big.bin?brutal=50'               # same, query form
 ```
 
+## No automatic rate discovery
+
+The rate is exactly what you configure (`rate` on the listener wrapper) or what the
+client declares (`X-Brutal-Down` / `?brutal=`), clamped by `max`. The module never
+probes the path, never reads `TCP_INFO`, never starts a goroutine per connection
+and never changes a rate on its own. The library's optional `autotune` package is
+not linked here at all (`make verify-opt-in` in the library enforces that), so
+enabling auto-tuning would require an explicit new configuration block.
+
 ## Choosing the rate (important)
 
 Brutal paces at exactly the declared rate and compensates loss by sending more.
