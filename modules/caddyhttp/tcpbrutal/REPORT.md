@@ -47,34 +47,40 @@ Host: Debian 12, kernel 6.1.0-44-cloud-amd64, 1 vCPU, module 2.0.1.
 
 | scenario | loss | goodput | link utilisation | wire load | overhead vs useful |
 |---|---|---|---|---|---|
-| stock Caddy, ns CC = cubic | 0 % | 185.4 Mbit/s | 92.7 % | 186.1 | 0 % |
-| stock Caddy, ns CC = bbr | 0 % | 186.0 Mbit/s | 93.0 % | 186.8 | 0 % |
+| stock Caddy, ns CC = cubic | 0 % | 185.2 Mbit/s | 92.6 % | 186.0 | 0 % |
+| stock Caddy, ns CC = bbr | 0 % | 185.9 Mbit/s | 92.9 % | 186.8 | 0 % |
 | brutal, rate 120 | 0 % | 117.8 Mbit/s | 58.9 % | 118.5 | 1 % |
-| brutal, rate 180 | 0 % | 176.4 Mbit/s | 88.2 % | 177.1 | 0 % |
-| brutal, rate 260 | 0 % | 187.5 Mbit/s | 93.8 % | 188.3 | 0 % |
-| stock Caddy, ns CC = cubic | 0.5 % | 25.6 Mbit/s | 12.8 % | 35.6 | 39 % |
-| stock Caddy, ns CC = bbr | 0.5 % | 185.6 Mbit/s | 92.8 % | 186.6 | 1 % |
+| brutal, rate 180 | 0 % | 176.5 Mbit/s | 88.3 % | 177.2 | 0 % |
+| brutal, rate 260 | 0 % | 187.5 Mbit/s | 93.8 % | 188.2 | 0 % |
+| stock Caddy, ns CC = cubic | 0.5 % | 25.8 Mbit/s | 12.9 % | 35.8 | 39 % |
+| stock Caddy, ns CC = bbr | 0.5 % | 185.9 Mbit/s | 93.0 % | 186.8 | 0 % |
 | brutal, rate 120 | 0.5 % | 118.4 Mbit/s | 59.2 % | 119.1 | 1 % |
-| brutal, rate 180 | 0.5 % | 177.3 Mbit/s | 88.6 % | 178.0 | 0 % |
-| brutal, rate 260 | 0.5 % | 29.5 Mbit/s | 14.8 % | 54.6 | 85 % |
-| stock Caddy, ns CC = cubic | 2 % | 3.7 Mbit/s | 1.8 % | 3.8 | 3 % |
-| stock Caddy, ns CC = bbr | 2 % | 185.2 Mbit/s | 92.6 % | 186.0 | 0 % |
-| brutal, rate 120 | 2 % | 118.3 Mbit/s | 59.1 % | 119.0 | 1 % |
-| brutal, rate 180 | 2 % | 177.5 Mbit/s | 88.7 % | 178.1 | 0 % |
-| brutal, rate 260 | 2 % | 25.9 Mbit/s | 13.0 % | 47.5 | 83 % |
-| stock Caddy, ns CC = cubic | 5 % | 2.1 Mbit/s | 1.1 % | 2.2 | 3 % |
-| stock Caddy, ns CC = bbr | 5 % | 181.3 Mbit/s | 90.7 % | 183.3 | 1 % |
-| brutal, rate 120 | 5 % | 117.4 Mbit/s | 58.7 % | 118.4 | 1 % |
-| brutal, rate 180 | 5 % | 177.3 Mbit/s | 88.7 % | 178.0 | 0 % |
-| brutal, rate 260 | 5 % | 21.6 Mbit/s | 10.8 % | 42.2 | 95 % |
+| brutal, rate 180 | 0.5 % | 177.4 Mbit/s | 88.7 % | 178.1 | 0 % |
+| brutal, rate 260 | 0.5 % | 20.5 Mbit/s | 10.3 % | 43.4 | 111 % |
+| stock Caddy, ns CC = cubic | 2 % | 3.8 Mbit/s | 1.9 % | 4.0 | 3 % |
+| stock Caddy, ns CC = bbr | 2 % | 184.1 Mbit/s | 92.1 % | 185.7 | 1 % |
+| brutal, rate 120 | 2 % | 118.4 Mbit/s | 59.2 % | 119.1 | 1 % |
+| brutal, rate 180 | 2 % | 177.7 Mbit/s | 88.8 % | 178.3 | 0 % |
+| brutal, rate 260 | 2 % | 22.1 Mbit/s | 11.1 % | 41.5 | 88 % |
+| stock Caddy, ns CC = cubic | 5 % | 2.2 Mbit/s | 1.1 % | 2.3 | 3 % |
+| stock Caddy, ns CC = bbr | 5 % | 160.4 Mbit/s | 80.2 % | 161.7 | 1 % |
+| brutal, rate 120 | 5 % | 117.7 Mbit/s | 58.9 % | 118.9 | 1 % |
+| brutal, rate 180 | 5 % | 171.0 Mbit/s | 85.5 % | 172.0 | 1 % |
+| brutal, rate 260 | 5 % | 58.2 Mbit/s | 29.1 % | 66.1 | 13 % |
+
+Run-to-run variance is real (each cell is an 8 s transfer on a 1 vCPU box):
+repeated runs differ by ±5 % normally, and much more at 5 % loss where the
+outcome depends on which recovery path the stack happens to take. The raw output
+of the run above is committed as `bench/results-on-host.md`. Representative
+figures are what matter here, not the third digit.
 
 What this says, in order of practical importance:
 
 1. **Against CUBIC** (the default on most hosts) brutal turns 1.1–12.8 % link
    utilisation into a flat 88.7 %, at every loss level, with **0 % wire
    overhead**. That is the case brutal exists for.
-2. **Against BBR it does not raise utilisation.** BBR holds 90.7–93.0 % here,
-   slightly *above* brutal@180, simply because brutal is capped by the declared
+2. **Against BBR it does not raise utilisation.** BBR holds 80–93 % here (the
+   5 %-loss column is the noisiest), slightly *above* brutal@180, simply because brutal is capped by the declared
    rate and BBR is not. Brutal's value is stability and a guaranteed rate, not a
    higher peak.
 3. **The declared rate is a hard ceiling and also a cliff.** At rate 260 on a
