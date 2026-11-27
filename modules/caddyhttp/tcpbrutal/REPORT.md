@@ -56,6 +56,35 @@ Client-declared rates on the same box (handler, `X-Brutal-Down`), clean path:
 | 40 Mbit/s | 36.3 Mbit/s | 91 % |
 | 100 Mbit/s | 97.4 Mbit/s | 97 % |
 
+## 1b. Bandwidth utilisation: how much of the pipe carries useful bytes
+
+Same shaped path (TBF 200 Mbit/s, 30 ms RTT, 2 % loss, namespace default CC =
+`cubic`), but measured for utilisation rather than raw speed. "Wire load" is
+every byte Caddy put on the veth (retransmissions included), read from
+`/sys/class/net/*/statistics/tx_bytes` around each run.
+
+| scenario | goodput | link utilisation | wire load | overhead vs useful |
+|---|---|---|---|---|
+| stock Caddy (cubic) | 3.9 Mbit/s | **1.9 %** | 4.0 Mbit/s | 3 % |
+| brutal, rate 60 | 59.6 Mbit/s | 29.8 % | 60.2 Mbit/s | 1 % |
+| brutal, rate 120 | 118.9 Mbit/s | 59.5 % | 119.6 Mbit/s | 1 % |
+| brutal, rate 180 | 177.7 Mbit/s | **88.8 %** | 178.4 Mbit/s | **0 %** |
+| brutal, rate 260 | 25.7 Mbit/s | 12.9 % | 40.6 Mbit/s | **58 %** |
+| brutal, rate 400 | 21.5 Mbit/s | 10.8 % | 39.4 Mbit/s | **83 %** |
+
+Reading:
+
+- A right-sized rate fills **88.8 %** of the bottleneck with useful bytes and
+  wastes nothing (0 % overhead), where the stock loss-based stack manages
+  **1.9 %**.
+- The declared rate is the ceiling, so utilisation ≈ declared ÷ capacity; do not
+  expect brutal to find capacity it was not told about.
+- Over-declaring is worse than doing nothing: at rate 260–400 the path collapses
+  to 11–13 % utilisation and 58–83 % of all wire bytes are retransmissions.
+- On the live path, clients declaring 40/80/60 Mbit/s received 36.5/69.2/55.8
+  (87–93 % of their declared budget), and a 100 Mbit/s declaration yielded
+  100.7 Mbit/s.
+
 ## 2. Against BBR on the live domain (168 ms, ~1–8 % loss)
 
 Environment: Caddy on a KVM VPS, Let's Encrypt certificate for the test domain
