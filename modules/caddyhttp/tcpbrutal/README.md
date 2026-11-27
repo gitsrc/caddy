@@ -232,11 +232,13 @@ A working systemd deployment lives in `deploy/`; it is what runs on the host use
 for the numbers in `REPORT.md`.
 
 ```bash
-# 1. kernel module: into /lib/modules so modprobe and modules-load.d work
-sudo install -d "/lib/modules/$(uname -r)/extra"
-sudo install -m 644 brutal.ko "/lib/modules/$(uname -r)/extra/"
-sudo depmod -a && sudo modprobe brutal
-echo brutal | sudo tee /etc/modules-load.d/brutal.conf
+# 1. kernel module — the source is vendored in the library repository, pinned to
+#    the upstream commit this build was tested against, so the kernel side and the
+#    Go side cannot drift:
+git clone https://github.com/gitsrc/tcp-brutal-go
+sudo bash tcp-brutal-go/scripts/install-module.sh --dkms   # /lib/modules, boot, DKMS
+# (equivalent manual path: install -d /lib/modules/$(uname -r)/extra; install -m
+#  644 brutal.ko there; depmod -a; modprobe brutal; echo brutal > /etc/modules-load.d/brutal.conf)
 
 # 2. caddy with the module
 sudo install -m 755 caddy /usr/local/bin/caddy
