@@ -157,6 +157,7 @@ impossible there).
 | `caddy reload` under systemd | ✅ no dropped requests |
 | journal | ✅ no warnings/errors |
 | HTTP/3 (QUIC), verified with a quic-go client | ✅ `HTTP/3.0`, TLS 1.3, 200 |
+| **survives a reboot** | ✅ module auto-loaded from `/lib/modules/*/extra` via `modules-load.d`, both services started, certificate reused, 42/42 checks pass again |
 
 Two deployment bugs worth recording, both now fixed in `deploy/`:
 
@@ -166,6 +167,16 @@ Two deployment bugs worth recording, both now fixed in `deploy/`:
 2. A global `log { output file ... }` only redirects the *default* logger; the
    access log needs a `log` block inside the site, otherwise requests are not
    recorded at all.
+
+Pacing accuracy on the live path after that reboot, client declaring 100 Mbit/s
+(`X-Brutal-Down: 100`):
+
+```
+brutal  cwnd:2546  pacing_rate 101010096bps  delivery_rate 100732816bps
+```
+
+The kernel paced at 101 Mbit/s for a 100 Mbit/s target and the client received
+100.7 Mbit/s — 0.7 % error end to end.
 
 ## 4. Operational conclusions
 

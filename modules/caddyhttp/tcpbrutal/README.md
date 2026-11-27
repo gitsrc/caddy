@@ -270,6 +270,12 @@ Let's Encrypt certificate issued over the proxied DNS record):
 passed: 42   failed: 0
 ```
 
+The host was then rebooted to prove the deployment is persistent: the module
+loaded from `/lib/modules/$(uname -r)/extra` via `modules-load.d`, both units
+started, the existing certificate was reused, and the suite passed 42/42 again.
+With a client declaring `X-Brutal-Down: 100`, the socket reported
+`pacing_rate 101010096bps` and the client received 100.7 Mbit/s (0.7 % error).
+
 HTTP/3 (QUIC) was verified separately, since it must keep working untouched by
 the TCP-only module: a quic-go client pinned to the origin IP with the site name
 as SNI got `proto=HTTP/3.0 tls=TLS 1.3 status=200`.
