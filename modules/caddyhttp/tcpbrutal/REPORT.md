@@ -227,6 +227,64 @@ Reading:
   window ÷ RTT ≈ 3 MB ÷ 0.151 s ≈ 160 Mbit/s, which is why one stream saturates
   at ~65 Mbit/s.
 
+## 2c. German client → US deployment, Caddy only, pinned to the origin IP
+
+The production deployment (this fork's build, systemd, Let's Encrypt) serves from
+**San Jose, California** (185.148.13.138, AS41378). Measured from **Frankfurt,
+Germany** (AS211301), with every request pinned to the origin IP and the site name
+kept as SNI/Host (`curl --resolve`), so Cloudflare is not in the path:
+
+- `curl -sv --resolve cs.ontoai.xyz:443:185.148.13.138` → `ALPN: h2`, Let's
+  Encrypt certificate verified, `HTTP/2 200`
+- the server's socket shows `peer=77.90.57.132` (the German client), whereas the
+  same URL through DNS answers with `server: cloudflare` and `cf-ray: …-FRA`
+- RTT 151.8 ms, 2.1–2.6 % TCP retransmits on the stock connections
+
+Two listeners of the same Caddy process: `:443` with `tcp_brutal` (the client
+declares `X-Brutal-Down: 500`, above the configured default of 200) and `:8443`
+stock, host default `bbr`. 2 GB files, 20 s windows, interleaved pairs.
+
+Single stream (HTTP/2 over TLS), 4 pairs:
+
+| pair | stock `:8443` (bbr) | brutal `:443` | delta |
+|---|---|---|---|
+| 1 | 51.1 Mbit/s | 67.4 Mbit/s | +31.9 % |
+| 2 | 35.0 Mbit/s | 71.6 Mbit/s | +104.6 % |
+| 3 | 54.5 Mbit/s | 57.8 Mbit/s | +6.0 % |
+| 4 | 56.8 Mbit/s | 58.4 Mbit/s | +2.8 % |
+| mean | **49.4 ± 8.5 Mbit/s** | **63.8 ± 5.9 Mbit/s** | **+29 %** |
+
+Four parallel streams, 3 pairs:
+
+| pair | stock `:8443` (bbr) | brutal `:443` | delta |
+|---|---|---|---|
+| 1 | 234 Mbit/s | 246 Mbit/s | +5.0 % |
+| 2 | 173 Mbit/s | 245 Mbit/s | +41.5 % |
+| 3 | 240 Mbit/s | 274 Mbit/s | +14.2 % |
+| mean | **216 ± 30 Mbit/s** | **255 ± 14 Mbit/s** | **+18 %** |
+
+Per-socket state during an 8 s window of each mode:
+
+```
+stock  : server cc=bbr     pacing=203 Mbit/s  sent=81.4 MB  retrans 2.56 %  rwnd_limited 58.7 %  peer=77.90.57.132
+brutal : server cc=brutal  pacing=505 Mbit/s  sent=96.5 MB  retrans 2.15 %  rwnd_limited 85.8 %  peer=77.90.57.132
+client : cc=bbr, zero retransmits, in both cases
+```
+
+Reading:
+
+- **+29 % single stream, +18 % with four streams**, from the deployed Caddy with
+  no configuration change other than the listener wrapper — and the client is an
+  unmodified `bbr` stack.
+- The larger effect at single stream is the expected shape: one flow is where
+  BBR's loss reaction costs the most, and where pacing keeps the window full.
+- **Variance roughly halves** (±8.5 → ±5.9, ±30 → ±14 Mbit/s): brutal is
+  predictable, BBR oscillates between recovery and full rate.
+- Brutal sends *more useful* bytes with a *lower* retransmit ratio (2.15 % vs
+  2.56 %), and reaches the link in fewer recovery cycles.
+- The client's receive window is again the ceiling (`rwnd_limited` 85.8 %), which
+  is why the declared 500 Mbit/s does not translate into 500 Mbit/s of goodput.
+
 ## 3. Deployment verification (systemd, live domain)
 
 Deployment: Debian 12 KVM (1 vCPU, kernel 6.1.0-44, module 2.0.1), Caddy running
