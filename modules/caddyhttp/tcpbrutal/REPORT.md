@@ -180,6 +180,53 @@ The client's declaration is applied to the live socket by the handler, on an
 HTTP/2 connection, without touching the listener configuration. This is the
 mechanism that makes brutal safe: the end that knows its own downlink states it.
 
+## 2b. Library-only test from a German client (no Caddy in the path)
+
+To separate the library from the Caddy integration, two Go servers were started
+on the VPS on spare ports — one plain `net/http` file server, one
+`brutal.Listen` from this library — and loaded from a machine in **Frankfurt,
+Germany** (AS211301, RTT 151 ms, ~5 % TCP retransmits on the plain connections).
+Production Caddy was untouched on :80/:443/:8443.
+
+Single stream, 30 s runs, 3 interleaved pairs:
+
+| pair | plain `net/http` | `brutal.Listen` @300 |
+|---|---|---|
+| 1 | 54.3 Mbit/s | 63.0 Mbit/s |
+| 2 | 65.2 Mbit/s | 64.7 Mbit/s |
+| 3 | 53.3 Mbit/s | 65.6 Mbit/s |
+| mean | **58 Mbit/s (spread ±11 %)** | **64 Mbit/s (spread ±2 %)** |
+
+Four parallel streams, 20 s runs, 4 interleaved pairs:
+
+| pair | plain `net/http` | `brutal.Listen` @400 |
+|---|---|---|
+| 1 | 215 Mbit/s | 252 Mbit/s |
+| 2 | 158 Mbit/s | 244 Mbit/s |
+| 3 | 205 Mbit/s | 244 Mbit/s |
+| 4 | 227 Mbit/s | 251 Mbit/s |
+| mean | **201 Mbit/s (spread ±22 %)** | **248 Mbit/s (spread ±2 %)** |
+
+Per-socket state while both were transferring:
+
+```
+plain   : server cc=bbr     pacing=165 Mbit/s  bytes_retrans 5.15 %  rwnd_limited 71.1 %   client cc=bbr
+brutal  : server cc=brutal  pacing=404 Mbit/s  bytes_retrans 2.64 %  rwnd_limited 85.9 %   client cc=bbr
+```
+
+Reading:
+
+- **+12 % single stream, +23 % with four streams**, from the library alone, with
+  the client running an untouched `bbr` stack: this is one-sided acceleration.
+- The more useful property is **stability**: ±2 % versus ±11–22 %. The plain BBR
+  connection keeps dropping into loss recovery; brutal holds the rate.
+- Brutal also wastes *less*: 2.64 % retransmitted bytes versus 5.15 %.
+- The ceiling here is the **client's receive window**, not the server:
+  `rwnd_limited` is 72–86 % and declaring 400 or 1500 Mbit/s gives the same
+  ~246 Mbit/s aggregate. Single-stream throughput cannot exceed
+  window ÷ RTT ≈ 3 MB ÷ 0.151 s ≈ 160 Mbit/s, which is why one stream saturates
+  at ~65 Mbit/s.
+
 ## 3. Deployment verification (systemd, live domain)
 
 Deployment: Debian 12 KVM (1 vCPU, kernel 6.1.0-44, module 2.0.1), Caddy running
